@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { listUsers, deleteUser, updateUser, type User } from "../../lib/api";
-import { useWebSocket } from "../../hooks/useWebSocket";
+import { useState } from "react";
+import { listUsers, deleteUser, updateUser } from "../../lib/api";
+import { useFirebaseRealtime } from "../../hooks/useFirebaseRealtime";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/card";
 import { Badge } from "@/components/atoms/badge";
@@ -21,77 +21,20 @@ import {
 } from "lucide-react";
 
 export default function UsersList() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
   
-  const { socket, isConnected } = useWebSocket('http://localhost:8080');
+  const { users, isConnected, loading } = useFirebaseRealtime();
 
   async function refresh() {
-    setLoading(true);
+    // Firebase realtime updates handle this automatically
+    // This function is kept for manual refresh if needed
     try {
-      setUsers(await listUsers());
-    } finally {
-      setLoading(false);
+      await listUsers();
+    } catch (error) {
+      console.error('Error refreshing users:', error);
     }
   }
-
-  // WebSocket event handlers
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleUserCreated = (newUser: User) => {
-      console.log('User created via WebSocket:', newUser);
-      setUsers(prev => [newUser, ...prev]);
-    };
-
-    const handleUserUpdated = (updatedUser: User) => {
-      console.log('User updated via WebSocket:', updatedUser);
-      setUsers(prev => prev.map(user => 
-        user.id === updatedUser.id ? updatedUser : user
-      ));
-    };
-
-    const handleUserDeleted = (deletedUser: User) => {
-      console.log('User deleted via WebSocket:', deletedUser);
-      setUsers(prev => prev.filter(user => user.id !== deletedUser.id));
-    };
-
-    const handleUsersList = (usersList: User[]) => {
-      console.log('Received users list via WebSocket:', usersList);
-      setUsers(usersList);
-      setLoading(false);
-    };
-
-    const handleError = (error: Error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    socket.on('user_created', handleUserCreated);
-    socket.on('user_updated', handleUserUpdated);
-    socket.on('user_deleted', handleUserDeleted);
-    socket.on('users_list', handleUsersList);
-    socket.on('error', handleError);
-
-    // Request initial users list
-    socket.emit('request_users');
-
-    return () => {
-      socket.off('user_created', handleUserCreated);
-      socket.off('user_updated', handleUserUpdated);
-      socket.off('user_deleted', handleUserDeleted);
-      socket.off('users_list', handleUsersList);
-      socket.off('error', handleError);
-    };
-  }, [socket]);
-
-  // Fallback to API if WebSocket is not connected
-  useEffect(() => {
-    if (!isConnected && users.length === 0) {
-      refresh();
-    }
-  }, [isConnected, users.length]);
 
   const handleDeleteUser = async (userId: string, userName: string) => {
     if (!confirm(`Are you sure you want to delete ${userName}?`)) return;
@@ -99,7 +42,6 @@ export default function UsersList() {
     setDeletingUser(userId);
     try {
       await deleteUser(userId);
-      // No need to call refresh() - WebSocket will handle the update
       setExpandedUser(null);
     } finally {
       setDeletingUser(null);
@@ -176,7 +118,6 @@ export default function UsersList() {
               >
                 <CardContent className="p-6">
                   <div className="space-y-5">
-                    {/* User Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div className="flex items-center gap-4">
                         <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl shadow-soft">
@@ -225,7 +166,6 @@ export default function UsersList() {
                       </div>
                     </div>
 
-                    {/* Location Details */}
                     <div className="bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-800 dark:to-blue-950/30 rounded-xl p-4 border border-slate-200/50 dark:border-slate-700/50">
                       <div className="flex items-center gap-3 text-sm">
                         <div className="p-2 bg-orange-100 dark:bg-orange-950/30 rounded-lg">
@@ -238,7 +178,6 @@ export default function UsersList() {
                       </div>
                     </div>
 
-                    {/* Edit Form */}
                     {expandedUser === user.id && (
                       <div className="space-y-6 animate-fade-in-up">
                         <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
@@ -262,7 +201,6 @@ export default function UsersList() {
                                   zipCode: data.zipCode,
                                   country: data.country,
                                 });
-                                // No need to call refresh() - WebSocket will handle the update
                                 setExpandedUser(null);
                               }}
                             />

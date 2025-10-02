@@ -20,7 +20,6 @@ export interface PaginatedUsers {
   };
 }
 
-// Check if database is available
 if (!db) {
   throw new Error("Firebase database is not configured. Please set FIREBASE_DB_URL environment variable.");
 }
